@@ -134,8 +134,16 @@ Navigate `index.html` by function:
   `exportSelected`; new entry `openNewEntry`/`showStep`/`saveEntry`. On desktop
   `placeJournalEditor` moves the entry form (`#journalStep2`) out of the modal into the
   page's right-hand panel; `editorInline()` tells the two homes apart.
-- **Workout:** `renderWorkout`, `toggleWorkoutSet`, `workoutSetsOn`/`workoutVolumeOn`
-  (the desktop tiles and "This week" list read past days' logs).
+- **Workout (daily full-body "snacks", gamified — Nov 2026):** `SNACK_EX` (7 lifts, each
+  with a break trigger), `snackScore(dk)` (XP: set 1, set at limit/Boss 2, core × 2 = 3,
+  walk 2 per 10 min, Boss record +3, Full Body Clear +5; 25 XP keeps the streak, Sunday =
+  core × 2 + 30 min walk), `snackStreak`, `snackRecords`/`snackPrevBoss` (Friday Boss set
+  vs the previous Boss set), `snackLogSet`/`snackRemoveSet`/`snackTogglePass`/`snackCore`/
+  `snackWalk`, `renderWorkout`. Day type from `snackDayType`: Mon/Wed/Fri heavy (Fri = Boss
+  fight), Tue/Thu/Sat light, Sun rest. Data lives in `logs[dk].snack =
+  { sets: {exId: [{w, r, lim, boss}]}, core, walk, pass }`. Stepper drafts (`snackDraft`)
+  are in memory only and prefill from the last logged set. The old 6-day split
+  (`logs[dk].workout`) was removed from the UI; its logged history is left in the data.
 - **Settings:** `renderSettings`, `renderAccount`, `addHabit`, `removeHabit`,
   `exportBackup`, `importBackup`.
 - **Reorder:** `initHabitSortable`, `reorderHabitsFromDOM` (SortableJS, Settings list).

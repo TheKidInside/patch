@@ -736,6 +736,34 @@
     .wk-state.part { background: var(--nz-bg); color: var(--nz-txt); font-size: 11px; font-weight: 700; }
 
     .wkt-panel { display: contents; }
+    /* Workout snacks (gamified daily full body) */
+    .wkt-side { display: flex; flex-direction: column; gap: 14px; }
+    .snk-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .snk-streak { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+    .snk-streak b { font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .snk-streak span { font-size: 11px; color: var(--ink-sub); }
+    .snk-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .snk-badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; background: var(--ink-line); color: var(--ink-sub); }
+    .snk-badge.on { background: #fff; color: var(--ink); }
+    .snk-trigger { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); margin-bottom: 2px; }
+    .snk-count { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: var(--sunk); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .snk-count.on { background: var(--accent); color: #fff; }
+    .snk-card.snk-done { border-color: var(--accent-bd); background: var(--accent-bg-2); }
+    .snk-level { font-size: 12px; font-weight: 600; color: var(--amber-dk); background: var(--amber-bg); border-radius: 8px; padding: 6px 10px; }
+    .snk-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .snk-pill { min-height: 32px; padding: 0 10px; border-radius: 16px; border: 1px solid var(--border-2); background: var(--card); font-size: 12px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+    .snk-pill.lim  { background: var(--nz-bg); border-color: var(--nz); color: var(--nz-txt); }
+    .snk-pill.boss { background: var(--amber-bg); border-color: var(--amber); color: var(--amber-dk); }
+    .snk-x { color: var(--faint); font-size: 14px; }
+    .snk-entry { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 4px; }
+    .snk-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .snk-actions .btn-outline { min-height: 44px; }
+    .snk-actions .btn-outline:disabled { opacity: .45; cursor: not-allowed; }
+    .snk-log { flex: 1; min-height: 44px; }
+    .snk-tog { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--card); font-size: 13px; font-weight: 600; color: var(--text-2); }
+    .snk-tog.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .snk-pass { align-self: flex-start; background: none; border: 0; padding: 6px 0; font-size: 12px; color: var(--muted); text-decoration: underline; }
+    .snk-rules ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--body); line-height: 1.5; }
     .field-pair { display: flex; flex-direction: column; gap: 16px; margin-top: 10px; }
     .field-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
     .card-head { padding: 18px 20px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 2px; }
@@ -906,6 +934,7 @@
       .wkt-cols { flex-direction: row; align-items: flex-start; gap: 16px; }
       .wkt-main { flex: 999 1 560px; }
       .wkt-side { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+      .snk-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
       .wkt-session { border-radius: 12px; padding: 20px; }
       .ws-title { font-size: 18px; }
       #wktActionBar { display: none !important; }
@@ -2944,375 +2973,353 @@ ${entry.content}
     signOut(auth);
   }
 
-  // ── WORKOUT MODULE ──────────────────────────────────────────────────────────
+  // ── WORKOUT MODULE: daily full-body "snacks", scored as a game ─────────────
+  // Every break unlocks one set. Daily goal: 7 lifts × 2 sets + core × 2 rounds
+  // ("Full Body Clear") + a walk. Logged per day in logs[dk].snack:
+  //   { sets: { <exId>: [{ w, r, lim, boss }] }, core: <rounds>, walk: <minutes>, pass: { <exId>: true } }
+  // The old 6-day split lived in logs[dk].workout; that history is left untouched.
 
-  const DOW_TO_PLAN_IDX = [6, 0, 1, 2, 3, 4, 5]; // JS getDay(): Sun=0..Sat=6 → plan Mon=0..Sun=6
-
-  const WORKOUT_DAYS = [
-    {
-      id: 'mon', name: 'Monday', label: 'Push', rest: false,
-      focus: 'Chest · Shoulders · Triceps',
-      activation: ['Scapular pushup — 2×10', 'Band pull-apart — 2×15'],
-      core: 'Dead Bug — 3 × 8/side',
-      exercises: [
-        { name: 'DB Floor Press',       sets: 4, repsLabel: '6–8',   w: 22.5, r: 8,  cue: 'Push the dumbbells away from your chest' },
-        { name: 'Half-Kneeling DB OHP', sets: 3, repsLabel: '8–10',  w: 16,   r: 10, cue: 'Push the ceiling away. Ribs down first' },
-        { name: 'DB Lateral Raise',     sets: 3, repsLabel: '12–15', w: 8,    r: 14, cue: 'Lead with the elbow' },
-        { name: 'Deficit Pushup',       sets: 3, repsLabel: 'AMRAP', w: 0,    r: 16, bw: true, cue: 'Push the floor away' },
-        { name: 'OH Tricep Extension',  sets: 3, repsLabel: '10–12', w: 14,   r: 12, cue: 'Elbows pinned by ears' },
-      ],
-    },
-    {
-      id: 'tue', name: 'Tuesday', label: 'Pull', rest: false,
-      focus: 'Back · Biceps',
-      activation: ['Scap pull-down — 2×10', 'Band pull-apart — 2×15'],
-      core: 'KB Suitcase Hold — 3 × 30s/side',
-      exercises: [
-        { name: 'DB Bent-Over Row',  sets: 4, repsLabel: '8–10',  w: 24, r: 10, cue: 'Elbows down and back to your back pockets' },
-        { name: 'Renegade Row',      sets: 3, repsLabel: '8/side', w: 16, r: 8,  cue: "Hips square — don't twist" },
-        { name: 'DB Floor Pullover', sets: 3, repsLabel: '10–12', w: 18, r: 12, cue: 'Pull back over with your armpits' },
-        { name: 'DB Hammer Curl',    sets: 3, repsLabel: '10–12', w: 12, r: 12, cue: 'Thumb to shoulder, palms facing' },
-        { name: 'Standing DB Curl',  sets: 3, repsLabel: '10–12', w: 10, r: 12, cue: 'Pinky to shoulder — supinate hard' },
-        { name: 'DB Rear Delt Fly',  sets: 3, repsLabel: '12–15', w: 7,  r: 14, cue: 'Elbows out at shoulder height' },
-      ],
-    },
-    {
-      id: 'wed', name: 'Wednesday', label: 'Rest', rest: true,
-      focus: 'Mid-week recovery',
-      notes: ['Walk 8–10k steps', 'GTG pushups · 30', 'GTG curls · 20', 'Mobility if tight'],
-      exercises: [],
-    },
-    {
-      id: 'thu', name: 'Thursday', label: 'Legs', rest: false,
-      focus: 'Quad · Glute focus',
-      activation: ['Clamshell — 2×15/side', 'Band lateral walk — 2×10', 'Glute bridge — 2×15'],
-      core: 'Plank — 3 × 30–45s',
-      exercises: [
-        { name: 'Goblet Squat',          sets: 4, repsLabel: '8–10',  w: 24, r: 10, tempo: '3-sec descent', cue: 'Spread the floor — knees over middle toes' },
-        { name: 'Bulgarian Split Squat', sets: 3, repsLabel: '8/leg', w: 16, r: 8,  tempo: '3-sec descent', cue: 'Push through the front heel' },
-        { name: 'KB Step-Up',            sets: 3, repsLabel: '8/leg', w: 16, r: 8,  cue: "Top foot's heel — bottom foot doesn't help" },
-        { name: 'Glute Bridge + DB',     sets: 3, repsLabel: '12–15', w: 20, r: 14, cue: 'Heels through the floor, hips to ceiling' },
-        { name: 'DB Romanian Deadlift',  sets: 3, repsLabel: '10–12', w: 26, r: 12, cue: 'Hips back toward the wall behind you' },
-        { name: 'Standing Calf Raise',   sets: 3, repsLabel: '15–20', w: 20, r: 18, cue: 'Push the floor away with the ball of the foot' },
-      ],
-    },
-    {
-      id: 'fri', name: 'Friday', label: 'Upper', rest: false,
-      focus: 'Push + Pull rebalance',
-      activation: ['Scapular pushup — 2×10', 'Band pull-apart — 2×15'],
-      core: 'Dead Bug — 3 × 10/side',
-      exercises: [
-        { name: 'DB Floor Press',         sets: 3, repsLabel: '10–12',    w: 20, r: 12, cue: 'Lighter than Monday — higher rep' },
-        { name: 'Single-Arm DB Row',      sets: 4, repsLabel: '10–12/side', w: 22, r: 12, cue: 'Elbow down and back' },
-        { name: 'Half-Kneeling DB OHP',   sets: 3, repsLabel: '10–12',    w: 14, r: 12, cue: 'Ribs down before the press' },
-        { name: 'Deficit Pushup',         sets: 3, repsLabel: 'AMRAP',    w: 0,  r: 15, bw: true, cue: 'Bottom stretch in the pec' },
-        { name: 'DB Hammer Curl',         sets: 3, repsLabel: '10–12',    w: 12, r: 12, cue: 'Same as Tuesday' },
-        { name: 'OH Tricep Extension',    sets: 3, repsLabel: '10–12',    w: 14, r: 12, cue: 'Same as Monday' },
-        { name: 'DB Lateral Raise',       sets: 3, repsLabel: '12–15',    w: 8,  r: 14, cue: 'Drop set on the last set' },
-      ],
-    },
-    {
-      id: 'sat', name: 'Saturday', label: 'Lower', rest: false,
-      focus: 'Hinge focus · back-friendly',
-      activation: ['Clamshell — 2×15/side', 'Band lateral walk — 2×10', 'Glute bridge — 2×15'],
-      core: 'Dead Bug — 3 × 10/side',
-      exercises: [
-        { name: 'DB Romanian Deadlift',   sets: 4, repsLabel: '8–10',  w: 28, r: 10, tempo: '3-sec descent', cue: 'Hips back. Knees nearly locked' },
-        { name: 'Goblet Squat',           sets: 3, repsLabel: '12–15', w: 20, r: 14, tempo: '3-sec descent', cue: 'Lighter than Thursday' },
-        { name: 'Single-Leg DB RDL',      sets: 3, repsLabel: '8/leg', w: 12, r: 8,  cue: 'Standing hip back, floating leg behind' },
-        { name: 'Glute Bridge · 2s hold', sets: 3, repsLabel: '12–15', w: 20, r: 14, cue: 'Max-squeeze at the top' },
-        { name: "KB Farmer's Carry",      sets: 3, repsLabel: '30–40m', w: 24, r: 35, carry: true, cue: 'Stand tall. Ribs down. No waddle' },
-      ],
-    },
-    {
-      id: 'sun', name: 'Sunday', label: 'Rest', rest: true,
-      focus: 'Weekend recovery',
-      notes: ['Walk if the mood is there', 'GTG pushups · 30', 'GTG curls · 20', 'Sunday log: weight avg · waist · photo'],
-      exercises: [],
-    },
+  const SNACK_EX = [
+    { id: 'squat',  name: 'Goblet squat',          trigger: 'Toilet break',                w: 12, r: 12, range: '10–15',            level: 15, cue: 'One dumbbell at your chest. Chest up, sit between your heels' },
+    { id: 'row',    name: 'One-arm row',           trigger: 'Finished a task or call',     w: 12, r: 12, range: '10–15 each side',  level: 15, cue: 'Hand and knee on a chair. Elbow to hip, flat back' },
+    { id: 'pushup', name: 'Push-ups',              trigger: 'Getting water or coffee',     bw: true, r: 13, range: '2 short of your max', level: 20, cue: 'Body in one straight line. At 20+, slow the lowering or raise your feet' },
+    { id: 'press',  name: 'Seated shoulder press', trigger: 'Mid-morning or mid-afternoon', w: 17, r: 8, range: '8–15',            level: 15, cue: 'Back on the backrest, ribs down. Back pain = stop' },
+    { id: 'raise',  name: 'Side raises',           trigger: 'Straight after the press',    w: 6,  r: 15, range: '12–20',            level: 20, cue: 'Lead with the elbows, stop at shoulder height' },
+    { id: 'curl',   name: 'Curls',                 trigger: 'Walking past the dumbbells',  w: 12, r: 10, range: '8–12',             level: 12, cue: 'Straight wrist, loose grip. Alternate palms-up and hammer days' },
+    { id: 'shrug',  name: 'Shrugs',                trigger: 'Waiting on the kettle or a file', w: 15, r: 12, range: '10–15',        level: 15, cue: 'Straight up, 1-second pause, no rolling' },
   ];
+  const SNACK_MAX_SETS = 3;     // more than 3 of one lift a day is grinding, not progress
+  const SNACK_TARGET   = 25;    // XP that keeps the streak alive
+  const SNACK_CLEAR    = 5;     // Full Body Clear bonus
+  const SNACK_RECORD   = 3;     // XP per Boss-fight record
+  const SNACK_SUN_WALK = 30;    // Sunday counts with core + this many walk minutes
+  const CORE_TEXT = 'Side plank 20–30 s each side · Dead bug 8 each side · Bird dog 8 each side';
 
-  let wktRestInterval = null;
-  let wktRestSecs     = 0;
+  const snackDraft = {};        // unsaved stepper values per exercise: { w, r, lim, boss }
 
-  function getTodayWorkoutDay() {
-    return WORKOUT_DAYS[DOW_TO_PLAN_IDX[new Date().getDay()]];
+  function keyToDate(dk) { const [y, m, d] = dk.split('-').map(Number); return new Date(y, m - 1, d); }
+  // Mon/Wed/Fri heavy (Fri = Boss fight), Tue/Thu/Sat light, Sun rest.
+  function snackDayType(d) { const g = d.getDay(); return g === 0 ? 'rest' : (g % 2 ? 'heavy' : 'light'); }
+  function getSnackLog(dk) {
+    const log = getLog(dk);
+    if (!log.snack) log.snack = { sets: {}, core: 0, walk: 0, pass: {} };
+    const s = log.snack;
+    s.sets = s.sets || {}; s.pass = s.pass || {}; s.core = s.core || 0; s.walk = s.walk || 0;
+    return s;
   }
 
-  function getWorkoutLog() {
-    const log = getLog(todayKey());
-    if (!log.workout) log.workout = { active: false, finished: false, completed: {}, weights: {}, reps: {} };
-    return log.workout;
+  // Most recent logged set of an exercise (any day, any kind) — prefills the steppers.
+  function snackLastSet(id) {
+    const keys = Object.keys(logs).filter(k => logs[k]?.snack?.sets?.[id]?.length).sort();
+    if (!keys.length) return null;
+    const arr = logs[keys[keys.length - 1]].snack.sets[id];
+    return arr[arr.length - 1];
+  }
+  // The latest Boss set of an exercise logged strictly before dk.
+  function snackPrevBoss(id, dk) {
+    const keys = Object.keys(logs).filter(k => k < dk && (logs[k]?.snack?.sets?.[id] || []).some(s => s.boss)).sort();
+    if (!keys.length) return null;
+    const bosses = logs[keys[keys.length - 1]].snack.sets[id].filter(s => s.boss);
+    return bosses[bosses.length - 1];
+  }
+  function snackBeats(ex, cur, prev) {
+    if (!prev) return false;
+    if (ex.bw) return cur.r > prev.r;
+    return cur.w > prev.w || (cur.w === prev.w && cur.r > prev.r);
+  }
+  // Exercises whose Boss set on dk beat the previous Boss set.
+  function snackRecords(dk) {
+    const s = logs[dk]?.snack;
+    if (!s) return [];
+    return SNACK_EX.filter(ex => {
+      const boss = (s.sets[ex.id] || []).filter(x => x.boss).pop();
+      return boss && snackBeats(ex, boss, snackPrevBoss(ex.id, dk));
+    }).map(ex => ex.id);
   }
 
-  function wktSetWeight(wkt, day, ei, si) {
-    return (wkt.weights[ei] != null && wkt.weights[ei][si] != null) ? wkt.weights[ei][si] : day.exercises[ei].w;
-  }
-
-  function wktSetReps(wkt, day, ei, si) {
-    return (wkt.reps[ei] != null && wkt.reps[ei][si] != null) ? wkt.reps[ei][si] : day.exercises[ei].r;
-  }
-
-  function isSetDone(wkt, ei, si) {
-    return !!(wkt.completed[ei] && wkt.completed[ei][si]);
-  }
-
-  function startRestTimer(secs) {
-    clearInterval(wktRestInterval);
-    wktRestSecs = secs;
-    const chip = document.getElementById('wktRestChip');
-    if (!chip) return;
-    chip.classList.add('visible');
-    updateRestChip();
-    wktRestInterval = setInterval(() => {
-      wktRestSecs--;
-      if (wktRestSecs <= 0) {
-        clearInterval(wktRestInterval);
-        if (chip) chip.classList.remove('visible');
-      } else {
-        updateRestChip();
-      }
-    }, 1000);
-  }
-
-  function updateRestChip() {
-    const chip = document.getElementById('wktRestChip');
-    if (!chip) return;
-    const m = Math.floor(wktRestSecs / 60);
-    const s = String(wktRestSecs % 60).padStart(2, '0');
-    chip.textContent = `Rest ${m}:${s}`;
-  }
-
-  function toggleWorkoutSet(ei, si) {
-    const wkt = getWorkoutLog();
-    const day = getTodayWorkoutDay();
-    if (!day.exercises[ei]) return;
-    const ex  = day.exercises[ei];
-    const arr = [...(wkt.completed[ei] || Array(ex.sets).fill(false))];
-    const turningOn = !arr[si];
-    arr[si] = turningOn;
-    wkt.completed = { ...wkt.completed, [ei]: arr };
-    if (turningOn) startRestTimer(90);
-    persist();
-    renderWorkout();
-  }
-
-  function adjWorkoutWeight(ei, si, delta) {
-    const wkt = getWorkoutLog();
-    const day = getTodayWorkoutDay();
-    const ex  = day.exercises[ei];
-    const arr = [...(wkt.weights[ei] || Array(ex.sets).fill(ex.w))];
-    arr[si] = Math.max(0, (arr[si] ?? ex.w) + delta);
-    wkt.weights = { ...wkt.weights, [ei]: arr };
-    persist();
-    renderWorkout();
-  }
-
-  function adjWorkoutReps(ei, si, delta) {
-    const wkt = getWorkoutLog();
-    const day = getTodayWorkoutDay();
-    const ex  = day.exercises[ei];
-    const arr = [...(wkt.reps[ei] || Array(ex.sets).fill(ex.r))];
-    arr[si] = Math.max(1, (arr[si] ?? ex.r) + delta);
-    wkt.reps = { ...wkt.reps, [ei]: arr };
-    persist();
-    renderWorkout();
-  }
-
-  function startWorkout() {
-    const wkt = getWorkoutLog();
-    if (!wkt.active) { wkt.active = true; persist(); }
-    renderWorkout();
-  }
-
-  function finishWorkout() {
-    const wkt = getWorkoutLog();
-    wkt.finished = true;
-    clearInterval(wktRestInterval);
-    const chip = document.getElementById('wktRestChip');
-    if (chip) chip.classList.remove('visible');
-    persist();
-    renderWorkout();
-  }
-
-  function planFor(d) { return WORKOUT_DAYS[DOW_TO_PLAN_IDX[d.getDay()]]; }
-
-  // Completed sets logged on a day.
-  function workoutSetsOn(dk) {
-    const w = logs[dk]?.workout;
-    if (!w || !w.completed) return 0;
-    return Object.values(w.completed).reduce((a, arr) => a + (arr || []).filter(Boolean).length, 0);
-  }
-
-  // kg × reps of the completed, weighted sets on a day (bodyweight and carries left out).
-  function workoutVolumeOn(dk, plan) {
-    const w = logs[dk]?.workout;
-    if (!w || !w.completed) return 0;
-    let v = 0;
-    Object.entries(w.completed).forEach(([ei, arr]) => {
-      const ex = plan.exercises[ei];
-      if (!ex || ex.bw || ex.carry) return;
-      (arr || []).forEach((done, si) => {
-        if (!done) return;
-        v += (w.weights?.[ei]?.[si] ?? ex.w) * (w.reps?.[ei]?.[si] ?? ex.r);
-      });
+  function snackScore(dk) {
+    const s = logs[dk]?.snack;
+    const type = snackDayType(keyToDate(dk));
+    const out = { xp: 0, cleared: 0, coreDone: false, clear: false, records: 0, walk: 0, qualifies: false, any: false };
+    if (!s) return out;
+    SNACK_EX.forEach(ex => {
+      const arr = (s.sets?.[ex.id] || []).slice(0, SNACK_MAX_SETS);
+      arr.forEach(st => { out.xp += (st.lim || st.boss) ? 2 : 1; });
+      if (s.pass?.[ex.id]) out.xp += Math.max(0, 2 - arr.length);   // an injury pass keeps the day whole
+      if (arr.length >= 2 || s.pass?.[ex.id]) out.cleared++;
+      if (arr.length) out.any = true;
     });
-    return v;
+    const core = s.core || 0;
+    out.xp += (core >= 1 ? 1 : 0) + (core >= 2 ? 2 : 0);
+    out.coreDone = core >= 2;
+    out.walk = s.walk || 0;
+    out.xp += Math.floor(out.walk / 10) * 2;
+    out.records = snackRecords(dk).length;
+    out.xp += out.records * SNACK_RECORD;
+    out.clear = out.cleared === SNACK_EX.length && out.coreDone;
+    if (out.clear) out.xp += SNACK_CLEAR;
+    out.any = out.any || core > 0 || out.walk > 0;
+    out.qualifies = type === 'rest' ? (out.coreDone && out.walk >= SNACK_SUN_WALK) : out.xp >= SNACK_TARGET;
+    return out;
+  }
+
+  // Consecutive qualifying days ending today (or yesterday, while today is still open).
+  function snackStreak() {
+    let d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const k = x => dateKey(x.getFullYear(), x.getMonth(), x.getDate());
+    if (!snackScore(k(d)).qualifies) d.setDate(d.getDate() - 1);
+    let n = 0;
+    while (n < 3650 && snackScore(k(d)).qualifies) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+
+  function snackDraftFor(ex) {
+    if (!snackDraft[ex.id]) {
+      const last = snackLastSet(ex.id);
+      snackDraft[ex.id] = { w: last ? last.w : (ex.w || 0), r: last ? last.r : ex.r, lim: false, boss: false };
+    }
+    return snackDraft[ex.id];
+  }
+  function snackAdj(id, field, delta) {
+    const ex = SNACK_EX.find(e => e.id === id);
+    const dr = snackDraftFor(ex);
+    dr[field] = Math.max(field === 'r' ? 1 : 0, Math.round((dr[field] + delta) * 10) / 10);
+    renderWorkout();
+  }
+  function snackToggle(id, field) {
+    const dr = snackDraftFor(SNACK_EX.find(e => e.id === id));
+    dr[field] = !dr[field];
+    if (field === 'boss' && dr.boss) dr.lim = false;
+    if (field === 'lim' && dr.lim) dr.boss = false;
+    renderWorkout();
+  }
+  function snackLogSet(id) {
+    const ex = SNACK_EX.find(e => e.id === id);
+    const s  = getSnackLog(todayKey());
+    const arr = s.sets[id] || [];
+    if (arr.length >= SNACK_MAX_SETS) return;
+    const dr = snackDraftFor(ex);
+    const type = snackDayType(today);
+    const set = { w: ex.bw ? 0 : dr.w, r: dr.r };
+    if (type === 'heavy' && dr.lim) set.lim = true;
+    if (today.getDay() === 5 && dr.boss) set.boss = true;
+    s.sets = { ...s.sets, [id]: [...arr, set] };
+    dr.lim = false; dr.boss = false;
+    persist();
+    renderWorkout();
+  }
+  function snackRemoveSet(id, i) {
+    const s = getSnackLog(todayKey());
+    const arr = [...(s.sets[id] || [])];
+    arr.splice(i, 1);
+    s.sets = { ...s.sets, [id]: arr };
+    persist();
+    renderWorkout();
+  }
+  function snackTogglePass(id) {
+    const s = getSnackLog(todayKey());
+    const pass = { ...s.pass };
+    if (pass[id]) delete pass[id]; else pass[id] = true;
+    s.pass = pass;
+    persist();
+    renderWorkout();
+  }
+  function snackCore(delta) {
+    const s = getSnackLog(todayKey());
+    s.core = Math.max(0, Math.min(3, (s.core || 0) + delta));
+    persist();
+    renderWorkout();
+  }
+  function snackWalk(delta) {
+    const s = getSnackLog(todayKey());
+    s.walk = Math.max(0, (s.walk || 0) + delta);
+    persist();
+    renderWorkout();
   }
 
   function renderWorkout() {
     const wrap      = document.getElementById('workoutScroll');
     const actionBar = document.getElementById('wktActionBar');
     if (!wrap) return;
+    if (actionBar) actionBar.style.display = 'none';
 
-    const fk  = focusKey();
-    const day = getTodayWorkoutDay();
-    const wkt = getWorkoutLog();
+    const fk   = focusKey();
     const todK = todayKey();
+    const type = snackDayType(today);
+    const isFri = today.getDay() === 5;
+    const s    = logs[todK]?.snack || { sets: {}, core: 0, walk: 0, pass: {} };
+    const sc   = snackScore(todK);
+    const streak = snackStreak();
+    const pct  = Math.min(100, Math.round(sc.xp / SNACK_TARGET * 100));
+    const recordsToday = snackRecords(todK);
 
-    // Last 7 days, from the logs
-    let sessions = 0, volume = 0;
-    for (let i = 0; i < 7; i++) {
-      const d  = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const DAY_INFO = {
+      heavy: isFri
+        ? ['Heavy day · Boss fight', 'One set of each lift to failure. Beat last Friday for +3 XP each']
+        : ['Heavy day', 'Sets close to your limit (1–2 reps left) score 2 XP'],
+      light: ['Light day', 'Stop 3–4 reps short. Make up the XP by walking more'],
+      rest:  ['Rest day', `Walk + core only. Core × 2 and ${SNACK_SUN_WALK} min walking keep your streak`],
+    };
+    const [dayTitle, daySub] = DAY_INFO[type];
+
+    // This week, Monday first
+    const DOW3 = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const mon  = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7));
+    let weekXp = 0, weekClears = 0, weekRecords = 0;
+    const weekRows = DOW3.map((lbl, i) => {
+      const d  = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i);
       const dk = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
-      if (workoutSetsOn(dk) > 0) sessions++;
-      volume += workoutVolumeOn(dk, planFor(d));
-    }
-
-    const totalSets = day.exercises.reduce((a, ex) => a + ex.sets, 0);
-    const doneSets  = day.exercises.reduce((a, ex, ei) => a + (wkt.completed[ei] || []).filter(Boolean).length, 0);
-    const allDone   = totalSets > 0 && doneSets >= totalSets;
-    const pct       = totalSets ? Math.round((doneSets / totalSets) * 100) : 0;
-    const started   = wkt.active || wkt.finished;
+      const t  = snackDayType(d);
+      const ds = snackScore(dk);
+      weekXp += ds.xp; if (ds.clear) weekClears++; weekRecords += ds.records;
+      const kind = t === 'rest' ? 'Rest · walk + core' : (d.getDay() === 5 ? 'Heavy · Boss fight' : (t === 'heavy' ? 'Heavy' : 'Light'));
+      const state = ds.qualifies
+        ? `<span class="wk-state done" title="Streak day">${ico('check', 14, 2.6)}</span>`
+        : (ds.any ? `<span class="wk-state part" title="${ds.xp} XP">${ds.xp}</span>` : '');
+      return `<div class="wk-row${dk === todK ? ' today' : ''}"><span class="wk-dow">${lbl}</span><span class="wk-info"><span class="wk-label">${kind}</span><span class="wk-focus">${ds.any ? `${ds.xp} XP${ds.clear ? ' · Full Body Clear' : ''}` : '—'}</span></span>${state}</div>`;
+    }).join('');
 
     const tiles = `
       <section class="tiles desk-only" aria-label="Summary">
-        <div class="tile"><span class="tile-lbl">Sessions, last 7 days</span><span class="tile-val">${sessions}</span><span class="tile-sub">Days with at least one set logged</span></div>
-        <div class="tile"><span class="tile-lbl">Volume, last 7 days</span><span class="tile-val">${Math.round(volume).toLocaleString('en-AU')} kg</span><span class="tile-sub">Sets × reps × weight</span></div>
-        <div class="tile"><span class="tile-lbl">Today's split</span><span class="tile-val sm">${escHtml(day.label)}</span><span class="tile-sub">${escHtml(day.focus)}</span></div>
-        <div class="tile"><span class="tile-lbl">Sets done today</span>${day.rest
-          ? '<span class="tile-val">0</span><span class="tile-sub">Rest day</span>'
-          : `<span class="tile-val">${doneSets} / ${totalSets}</span><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>`}</div>
+        <div class="tile"><span class="tile-lbl">Streak</span><span class="tile-val">${streak} ${streak === 1 ? 'day' : 'days'}</span><span class="tile-sub">Days at ${SNACK_TARGET} XP or more</span></div>
+        <div class="tile"><span class="tile-lbl">XP today</span><span class="tile-val">${sc.xp} / ${SNACK_TARGET}</span><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></div>
+        <div class="tile"><span class="tile-lbl">Full Body Clears this week</span><span class="tile-val">${weekClears}</span><span class="tile-sub">${weekXp} XP this week</span></div>
+        <div class="tile"><span class="tile-lbl">Boss records this week</span><span class="tile-val">${weekRecords}</span><span class="tile-sub">Friday sets that beat the last one</span></div>
       </section>`;
 
-    // This week's plan, Monday first, with what got logged
-    const DOW3 = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const mon  = new Date(today.getFullYear(), today.getMonth(), today.getDate() - DOW_TO_PLAN_IDX[today.getDay()]);
-    const weekRows = WORKOUT_DAYS.map((p, i) => {
-      const d   = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i);
-      const dk  = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
-      const tot = p.exercises.reduce((a, ex) => a + ex.sets, 0);
-      const n   = workoutSetsOn(dk);
-      let state = '';
-      if (!p.rest && (logs[dk]?.workout?.finished || (tot && n >= tot))) state = `<span class="wk-state done" title="Done">${ico('check', 14, 2.6)}</span>`;
-      else if (!p.rest && n > 0) state = `<span class="wk-state part" title="${n} of ${tot} sets">${n}</span>`;
-      return `<div class="wk-row${dk === todK ? ' today' : ''}"><span class="wk-dow">${DOW3[i]}</span><span class="wk-info"><span class="wk-label">${escHtml(p.label)}</span><span class="wk-focus">${escHtml(p.focus)}</span></span>${state}</div>`;
-    }).join('');
-    const weekCard = `<aside class="wkt-side desk-only"><section class="card week-card" aria-labelledby="wkH"><h2 id="wkH">This week</h2>${weekRows}</section></aside>`;
-
-    if (day.rest) {
-      wrap.innerHTML = tiles + `
-        <div class="wkt-cols">
-          <div class="wkt-main">
-            <section class="card wkt-rest-day">
-              <span class="wkt-rest-ico">${ico('moon', 22)}</span>
-              <h2 class="wkt-rest-title">${escHtml(day.name)} · ${escHtml(day.label)}</h2>
-              <p class="wkt-rest-sub">${escHtml(day.focus)}</p>
-              ${day.notes ? `<ul class="wkt-rest-list">${day.notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>` : ''}
-            </section>
+    const hero = `
+      <section class="wkt-session snk-hero" aria-labelledby="snkH">
+        <div class="ws-top">
+          <div>
+            <h2 class="ws-title" id="snkH">${escHtml(dayTitle)}</h2>
+            <div class="ws-sub">${escHtml(daySub)}</div>
           </div>
-          ${weekCard}
-        </div>`;
-      if (actionBar) actionBar.style.display = 'none';
-      return;
-    }
+          <div class="snk-streak" title="Streak"><b>${streak}</b><span>day streak</span></div>
+        </div>
+        <div class="ws-progress"><div class="ws-bar"><div class="ws-fill" style="width:${pct}%"></div></div><span class="ws-lbl">${sc.xp} / ${SNACK_TARGET} XP</span></div>
+        <div class="snk-badges">
+          <span class="snk-badge${sc.clear ? ' on' : ''}">${sc.clear ? 'Full Body Clear +5' : `Clear ${sc.cleared + (sc.coreDone ? 1 : 0)}/${SNACK_EX.length + 1}`}</span>
+          <span class="snk-badge${sc.walk ? ' on' : ''}">Walk ${sc.walk} min</span>
+          ${recordsToday.length ? `<span class="snk-badge on">${recordsToday.length} Boss ${recordsToday.length === 1 ? 'record' : 'records'}</span>` : ''}
+          ${sc.qualifies ? '<span class="snk-badge on">Streak kept</span>' : ''}
+        </div>
+      </section>`;
 
-    const deskCta = wkt.finished
-      ? '<button type="button" class="btn-outline" disabled>Workout complete</button>'
-      : wkt.active
-        ? `<button type="button" class="${allDone ? 'btn-primary' : 'btn-outline'}" onclick="finishWorkout()">${allDone ? 'Finish workout' : 'End early'}</button>`
-        : '<button type="button" class="btn-primary" onclick="startWorkout()">Start workout</button>';
-    if (isDesktop() && activeView() === 'workout') document.getElementById('hActions').innerHTML = deskCta;
-
-    let html = tiles + `
-      <div class="wkt-cols">
-        <div class="wkt-main"><div class="wkt-panel">
-          <section class="wkt-session" aria-labelledby="wsH">
-            <div class="ws-top">
-              <div>
-                <h2 class="ws-title" id="wsH">${escHtml(day.label)} · ${escHtml(day.focus)}</h2>
-                <div class="ws-sub">${day.exercises.length} exercises · ${totalSets} sets</div>
-              </div>
-              <span class="ws-pct">${pct}%</span>
-            </div>
-            <div class="ws-progress"><div class="ws-bar"><div class="ws-fill" style="width:${pct}%"></div></div><span class="ws-lbl">${doneSets}/${totalSets} sets</span></div>
-          </section>`;
-
-    if (day.activation && day.activation.length) {
-      html += `
-          <section class="card wkt-activation">
-            <span class="wkt-act-label">Activation</span>
-            <span class="wkt-act-list">${day.activation.map(escHtml).join(' · ')}</span>
-          </section>`;
-    }
-
-    day.exercises.forEach((ex, ei) => {
-      const nDone = (wkt.completed[ei] || []).filter(Boolean).length;
-      const meta  = `${ex.sets} × ${escHtml(ex.repsLabel)}${ex.bw ? ' · bodyweight' : (ex.w ? ` · ${ex.w} kg` : '')}${ex.tempo ? ' · ' + escHtml(ex.tempo) : ''}`;
-      html += `
-          <section class="ex-card${started && nDone >= ex.sets ? ' done' : ''}">
+    // Exercise cards (hidden on the rest day)
+    let cards = '';
+    if (type !== 'rest') {
+      SNACK_EX.forEach(ex => {
+        const arr  = s.sets?.[ex.id] || [];
+        const pass = !!s.pass?.[ex.id];
+        const dr   = snackDraftFor(ex);
+        const full = arr.length >= SNACK_MAX_SETS;
+        const done = arr.length >= 2 || pass;
+        const lastBoss = snackPrevBoss(ex.id, '9999-99-99');
+        const levelUp  = lastBoss && lastBoss.r >= ex.level;
+        const pills = arr.map((st, i) => `
+              <button type="button" class="snk-pill${st.boss ? ' boss' : (st.lim ? ' lim' : '')}" data-focus="sp${ex.id}${i}" onclick="snackRemoveSet('${ex.id}',${i})" aria-label="Remove set ${i + 1}: ${ex.bw ? '' : st.w + ' kg × '}${st.r} reps">
+                ${ex.bw ? '' : `${st.w} kg × `}${st.r}${st.boss ? ' · Boss' : (st.lim ? ' · limit' : '')}<span class="snk-x" aria-hidden="true">×</span>
+              </button>`).join('');
+        const toggles = [];
+        if (type === 'heavy') toggles.push(`<button type="button" class="snk-tog${dr.lim ? ' on' : ''}" data-focus="st${ex.id}l" aria-pressed="${dr.lim}" onclick="snackToggle('${ex.id}','lim')">At limit +1</button>`);
+        if (isFri) toggles.push(`<button type="button" class="snk-tog${dr.boss ? ' on' : ''}" data-focus="st${ex.id}b" aria-pressed="${dr.boss}" onclick="snackToggle('${ex.id}','boss')">Boss set</button>`);
+        cards += `
+          <section class="ex-card snk-card${done ? ' snk-done' : ''}" aria-labelledby="snk-${ex.id}">
             <div class="ex-head">
-              <div><div class="ex-name">${escHtml(ex.name)}</div><div class="ex-meta">${meta}</div></div>
-              ${started ? `<span class="ex-count">${nDone}/${ex.sets}</span>` : ''}
-            </div>
-            ${ex.cue ? `<div class="ex-cue">${escHtml(ex.cue)}</div>` : ''}`;
-      if (started) {
-        html += `<div class="wset-head" aria-hidden="true"><span>Set</span><span>${ex.bw ? '' : 'kg'}</span><span>${ex.carry ? 'Metres' : 'Reps'}</span><span>Done</span></div>`;
-        for (let si = 0; si < ex.sets; si++) {
-          const done = isSetDone(wkt, ei, si);
-          const w    = wktSetWeight(wkt, day, ei, si);
-          const r    = wktSetReps(wkt, day, ei, si);
-          const n    = si + 1;
-          html += `
-            <div class="set-row${done ? ' done' : ''}">
-              <span class="wset-num">${n}</span>
-              ${ex.bw ? '<span class="stp-bw">BW</span>' : `
-              <div class="stp">
-                <button type="button" class="stp-btn" data-focus="ww${ei}-${si}m" onclick="adjWorkoutWeight(${ei},${si},-2)" aria-label="Less weight, set ${n}">${ico('minus', 14, 2)}</button>
-                <span class="stp-val">${w}</span>
-                <button type="button" class="stp-btn" data-focus="ww${ei}-${si}p" onclick="adjWorkoutWeight(${ei},${si},2)" aria-label="More weight, set ${n}">${ico('plus', 14, 2)}</button>
-              </div>`}
-              <div class="stp">
-                <button type="button" class="stp-btn" data-focus="wr${ei}-${si}m" onclick="adjWorkoutReps(${ei},${si},-1)" aria-label="Fewer ${ex.carry ? 'metres' : 'reps'}, set ${n}">${ico('minus', 14, 2)}</button>
-                <span class="stp-val">${r}</span>
-                <button type="button" class="stp-btn" data-focus="wr${ei}-${si}p" onclick="adjWorkoutReps(${ei},${si},1)" aria-label="More ${ex.carry ? 'metres' : 'reps'}, set ${n}">${ico('plus', 14, 2)}</button>
+              <div>
+                <div class="snk-trigger">${escHtml(ex.trigger)}</div>
+                <div class="ex-name" id="snk-${ex.id}">${escHtml(ex.name)}</div>
+                <div class="ex-meta">${escHtml(ex.range)}${ex.bw ? ' · bodyweight' : ''}</div>
               </div>
-              <button type="button" data-focus="wc${ei}-${si}" class="set-check${done ? ' checked' : ''}" onclick="toggleWorkoutSet(${ei},${si})" aria-pressed="${done}" aria-label="${escHtml(ex.name)}, set ${n} done">${ico('check', 16, 2.6)}</button>
-            </div>`;
-        }
-      }
-      html += `
+              <span class="snk-count${done ? ' on' : ''}">${pass ? 'Pass' : `${arr.length}/2`}</span>
+            </div>
+            <div class="ex-cue">${escHtml(ex.cue)}</div>
+            ${levelUp ? `<div class="snk-level">Level up: last Boss set hit ${lastBoss.r} reps. ${ex.bw ? 'Make it harder' : 'Add weight'}.</div>` : ''}
+            ${arr.length ? `<div class="snk-pills">${pills}</div>` : ''}
+            ${pass ? '' : `
+            <div class="snk-entry">
+              ${ex.bw ? '<span class="stp-bw">Bodyweight</span>' : `
+              <div class="stp" aria-label="Weight">
+                <button type="button" class="stp-btn" data-focus="sw${ex.id}m" onclick="snackAdj('${ex.id}','w',-1)" aria-label="Less weight">${ico('minus', 14, 2)}</button>
+                <span class="stp-val">${dr.w} kg</span>
+                <button type="button" class="stp-btn" data-focus="sw${ex.id}p" onclick="snackAdj('${ex.id}','w',1)" aria-label="More weight">${ico('plus', 14, 2)}</button>
+              </div>`}
+              <div class="stp" aria-label="Reps">
+                <button type="button" class="stp-btn" data-focus="sr${ex.id}m" onclick="snackAdj('${ex.id}','r',-1)" aria-label="Fewer reps">${ico('minus', 14, 2)}</button>
+                <span class="stp-val">${dr.r} reps</span>
+                <button type="button" class="stp-btn" data-focus="sr${ex.id}p" onclick="snackAdj('${ex.id}','r',1)" aria-label="More reps">${ico('plus', 14, 2)}</button>
+              </div>
+            </div>
+            <div class="snk-actions">
+              ${toggles.join('')}
+              <button type="button" class="btn-primary snk-log" data-focus="sl${ex.id}" onclick="snackLogSet('${ex.id}')"${full ? ' disabled' : ''}>${full ? 'Max 3 sets today' : 'Log set'}</button>
+            </div>`}
+            <button type="button" class="snk-pass" data-focus="spass${ex.id}" onclick="snackTogglePass('${ex.id}')">${pass ? 'Undo injury pass' : 'Injury pass (back or elbow pain)'}</button>
           </section>`;
-    });
-
-    if (started && day.core) html += `<p class="wkt-finisher">Finisher · ${escHtml(day.core)}</p>`;
-    html += `
-        </div></div>
-        ${weekCard}
-      </div>`;
-    wrap.innerHTML = html;
-    refocus(fk);
-
-    if (actionBar) {
-      actionBar.style.display = '';
-      if (wkt.finished) {
-        actionBar.innerHTML = '<button type="button" class="wkt-start-btn finished" disabled>Workout complete</button>';
-      } else if (wkt.active) {
-        actionBar.innerHTML = `<button type="button" class="wkt-start-btn${allDone ? '' : ' ghost'}" onclick="finishWorkout()">${allDone ? 'Finish workout' : 'End early'}</button>`;
-      } else {
-        actionBar.innerHTML = '<button type="button" class="wkt-start-btn" onclick="startWorkout()">Start workout</button>';
-      }
+      });
     }
+
+    const core = s.core || 0;
+    const coreCard = `
+      <section class="ex-card snk-card${core >= 2 ? ' snk-done' : ''}" aria-labelledby="snk-core">
+        <div class="ex-head">
+          <div>
+            <div class="snk-trigger">Before your shower</div>
+            <div class="ex-name" id="snk-core">Core circuit</div>
+            <div class="ex-meta">2 rounds · 3 XP</div>
+          </div>
+          <span class="snk-count${core >= 2 ? ' on' : ''}">${core}/2</span>
+        </div>
+        <div class="ex-cue">${CORE_TEXT}</div>
+        <div class="snk-actions">
+          <button type="button" class="btn-outline" data-focus="scm" onclick="snackCore(-1)"${core ? '' : ' disabled'}>Undo</button>
+          <button type="button" class="btn-primary snk-log" data-focus="scp" onclick="snackCore(1)"${core >= 3 ? ' disabled' : ''}>Log round</button>
+        </div>
+      </section>`;
+
+    const walkCard = `
+      <section class="ex-card snk-card${sc.walk >= SNACK_SUN_WALK ? ' snk-done' : ''}" aria-labelledby="snk-walk">
+        <div class="ex-head">
+          <div>
+            <div class="snk-trigger">After lunch or dinner</div>
+            <div class="ex-name" id="snk-walk">Walk</div>
+            <div class="ex-meta">2 XP per 10 min · aim for 30–45 min</div>
+          </div>
+          <span class="snk-count${sc.walk >= SNACK_SUN_WALK ? ' on' : ''}">${sc.walk} min</span>
+        </div>
+        <div class="snk-actions">
+          <button type="button" class="btn-outline" data-focus="swm" onclick="snackWalk(-10)"${sc.walk ? '' : ' disabled'}>−10 min</button>
+          <button type="button" class="btn-primary snk-log" data-focus="swp" onclick="snackWalk(10)">+10 min</button>
+        </div>
+      </section>`;
+
+    const rules = `
+      <section class="card week-card snk-rules" aria-labelledby="snkRulesH">
+        <h2 id="snkRulesH">How scoring works</h2>
+        <ul>
+          <li>Every break unlocks one set. Log it before you sit back down.</li>
+          <li>Set: 1 XP. Set at your limit (heavy days): 2 XP.</li>
+          <li>Core × 2 rounds: 3 XP. Walk: 2 XP per 10 min.</li>
+          <li>Full Body Clear (every lift × 2 + core × 2): +5.</li>
+          <li>Friday Boss set beats last Friday: +3 per lift.</li>
+          <li>${SNACK_TARGET} XP keeps the streak. Sunday: core × 2 + ${SNACK_SUN_WALK} min walk.</li>
+          <li>Max 3 sets of a lift a day. Back or elbow pain: use the injury pass.</li>
+          <li>First set of the day: half effort, as a warm-up.</li>
+        </ul>
+      </section>`;
+
+    wrap.innerHTML = tiles + `
+      <div class="wkt-cols">
+        <div class="wkt-main">
+          ${hero}
+          <div class="snk-grid">${cards}${coreCard}${walkCard}</div>
+        </div>
+        <aside class="wkt-side">
+          <section class="card week-card" aria-labelledby="wkH"><h2 id="wkH">This week</h2>${weekRows}</section>
+          ${rules}
+        </aside>
+      </div>`;
+    refocus(fk);
   }
 
   // ── INIT ────────────────────────────────────────────────────────────────────
@@ -3342,7 +3349,8 @@ ${entry.content}
     deleteEntry, addCustomTag, removeCustomTag, enterEditMode,
     saveEdit, cancelEdit, exportToObsidian, onTranscriptInput,
     applyFilters, setCatFilter, setTagFilter, toggleSelectEntry,
-    startWorkout, finishWorkout, toggleWorkoutSet, adjWorkoutWeight, adjWorkoutReps,
+    snackAdj, snackToggle, snackLogSet, snackRemoveSet, snackTogglePass, snackCore, snackWalk,
+    snackScore, snackStreak, snackRecords,
   });
 </script>
 </body>

@@ -2,6 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>
+    // Sign-in only works when the app runs on the same domain as authDomain
+    // (patch-ec17e.firebaseapp.com). On github.io / web.app, Safari's storage
+    // partitioning leaves "Continue with Google" stuck. Forward there first.
+    (function () {
+      var h = location.hostname;
+      if (h === 'thekidinside.github.io' || h === 'patch-ec17e.web.app') {
+        var path = location.pathname.replace(/^\/patch(\/|$)/, '/');
+        location.replace('https://patch-ec17e.firebaseapp.com' + path + location.search + location.hash);
+      }
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2959,7 +2971,11 @@ ${entry.content}
     if (el) el.style.display = 'none';
 
     authReady.then(() => {
-      if (IS_IOS || IS_STANDALONE) return signInWithRedirect(auth, provider);
+      // Same domain as authDomain → the full-page redirect always completes. Use it
+      // everywhere there; popups hang on Google's "Continue" screen on phones/PWAs.
+      if (IS_IOS || IS_STANDALONE || location.hostname === firebaseConfig.authDomain) {
+        return signInWithRedirect(auth, provider);
+      }
       return signInWithPopup(auth, provider).catch(e =>
         POPUP_FAILURES.includes(e.code)
           ? signInWithRedirect(auth, provider)
